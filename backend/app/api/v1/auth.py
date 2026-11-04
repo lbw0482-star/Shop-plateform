@@ -50,7 +50,7 @@ async def member_register(
         await client.cart.create(data={"userId": user.userId})
     except prisma_errors.UniqueViolationError:
         raise conflict("用户名已存在") from None
-    return ok(public_user(user), "注册成功，请登录")
+    return ok({"type": "member", "user": public_user(user)}, "注册成功，请登录")
 
 
 @router.post("/auth/member/login")
@@ -69,13 +69,16 @@ async def member_login(
     await client.sysuser.update(
         where={"userId": user.userId}, data={"lastLoginTime": utcnow()}
     )
+    fresh = await client.sysuser.find_unique(
+        where={"userId": user.userId}, include={"level": True}
+    )
     settings = get_settings()
     token = await sessions.create(
         client, subject_type="member", subject_id=user.userId,
         ttl_hours=settings.session_ttl_hours,
     )
     set_member_cookie(response, token)
-    return ok(public_user(user), "登录成功")
+    return ok({"type": "member", "user": public_user(fresh or user)}, "登录成功")
 
 
 @router.post("/auth/admin/login")
@@ -101,7 +104,7 @@ async def admin_login(
         ttl_hours=settings.session_ttl_hours,
     )
     set_admin_cookie(response, token)
-    return ok(await admin_view(client, admin), "登录成功")
+    return ok({"type": "admin", "admin": await admin_view(client, admin)}, "登录成功")
 
 
 async def admin_view(client: Prisma, admin) -> dict:

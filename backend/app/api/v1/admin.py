@@ -38,6 +38,13 @@ router = APIRouter()
 USER_ORDER_INCLUDE = {"level": True}
 ADMIN_ROLES_INCLUDE = {"roles": {"include": {"role": True}}}
 
+# 等级请求模型为 snake_case，Prisma 模型字段为 camelCase（同名键无需转换）
+LEVEL_FIELD_MAP = {
+    "level_name": "levelName",
+    "min_points": "minPoints",
+    "max_points": "maxPoints",
+}
+
 
 def _pagination(page_no: int, page_size: int) -> dict[str, int]:
     return {"skip": (page_no - 1) * page_size, "take": page_size}
@@ -243,7 +250,8 @@ async def update_level(
     min_points = fields.get("min_points", level.minPoints)
     if max_points is not None and min_points > max_points:
         raise bad_request("积分下限不能大于上限")
-    await client.memberlevel.update(where={"levelId": level_id}, data=fields)
+    data = {LEVEL_FIELD_MAP.get(key, key): value for key, value in fields.items()}
+    await client.memberlevel.update(where={"levelId": level_id}, data=data)
     await audit.write(client, admin, "UPDATE", "LEVEL", level_id)
     return ok(
         {

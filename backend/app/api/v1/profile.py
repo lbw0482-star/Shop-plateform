@@ -14,6 +14,14 @@ from .serializers import public_address
 
 router = APIRouter()
 
+# 请求模型为 snake_case，Prisma 模型字段为 camelCase
+ADDRESS_FIELD_MAP = {
+    "receiver_name": "receiverName",
+    "receiver_phone": "receiverPhone",
+    "address_detail": "addressDetail",
+    "is_default": "isDefault",
+}
+
 
 def _owned(address: MemberAddress | None, user_id: int) -> MemberAddress:
     if address is None:
@@ -29,7 +37,7 @@ async def list_addresses(
 ) -> dict:
     rows = await client.memberaddress.find_many(
         where={"userId": user.userId},
-        order=[{"isDefault": "desc"}, {"createdAt": "desc"}],
+        order=[{"isDefault": "desc"}, {"createdTime": "desc"}],
     )
     return ok([public_address(row) for row in rows])
 
@@ -40,8 +48,8 @@ async def create_address(
     user=Depends(get_current_member),
     client: Prisma = Depends(get_client),
 ) -> dict:
-    data = payload.model_dump()
-    if data["is_default"]:
+    data = {ADDRESS_FIELD_MAP[key]: value for key, value in payload.model_dump().items()}
+    if data["isDefault"]:
         await client.memberaddress.update_many(
             where={"userId": user.userId, "isDefault": True}, data={"isDefault": False}
         )
@@ -60,8 +68,8 @@ async def update_address(
         await client.memberaddress.find_unique(where={"addressId": address_id}),
         user.userId,
     )
-    fields = payload.model_dump(exclude_unset=True)
-    if fields.get("is_default"):
+    fields = {ADDRESS_FIELD_MAP[key]: value for key, value in payload.model_dump(exclude_unset=True).items()}
+    if fields.get("isDefault"):
         await client.memberaddress.update_many(
             where={"userId": user.userId, "isDefault": True}, data={"isDefault": False}
         )

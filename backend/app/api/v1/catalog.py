@@ -29,6 +29,12 @@ router = APIRouter()
 PRODUCT_INCLUDE = {"category": True}
 PRODUCT_DETAIL_INCLUDE = {"category": True, "images": {"orderBy": [{"sortNo": "asc"}]}}
 
+# 分类请求模型为 snake_case，Prisma 模型字段为 camelCase（同名键无需转换）
+CATEGORY_FIELD_MAP = {
+    "category_name": "categoryName",
+    "sort_no": "sortNo",
+}
+
 
 def _product_filters(
     *,
@@ -143,7 +149,10 @@ async def create_category(
         raise conflict("分类名称已存在")
     try:
         category = await client.productcategory.create(
-            data=payload.model_dump(exclude_unset=True)
+            data={
+                CATEGORY_FIELD_MAP.get(key, key): value
+                for key, value in payload.model_dump(exclude_unset=True).items()
+            }
         )
     except prisma_errors.UniqueViolationError:
         raise conflict("分类名称已存在") from None
@@ -162,6 +171,9 @@ async def update_category(
     if category is None:
         raise not_found("分类不存在")
     fields = payload.model_dump(exclude_unset=True)
+    data = {
+        CATEGORY_FIELD_MAP.get(key, key): value for key, value in fields.items()
+    }
     name = fields.get("category_name")
     if name and name.lower() != category.categoryName.lower():
         exists = await client.productcategory.find_first(
@@ -171,7 +183,7 @@ async def update_category(
             raise conflict("分类名称已存在")
     try:
         updated = await client.productcategory.update(
-            where={"categoryId": category_id}, data=fields
+            where={"categoryId": category_id}, data=data
         )
     except prisma_errors.UniqueViolationError:
         raise conflict("分类名称已存在") from None
