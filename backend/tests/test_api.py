@@ -16,7 +16,6 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.repositories import prisma as prisma_repo
 
 client = TestClient(app, raise_server_exceptions=True)
 client.__enter__()  # 保持 lifespan 打开：全程复用同一个 Prisma 连接
@@ -483,13 +482,15 @@ def test_admin_statistics():
     assert "paid_amount" in stats
 
 
-async def test_concurrent_orders_cannot_oversell():
-    """并发下单不会产生负库存：库存 1 的商品仅一单成功。"""
-    connected_here = not prisma_repo.client.is_connected()
-    if connected_here:
-        await prisma_repo.connect()
-    try:
-        transport = ASGITransport(app=app)
+def test_concurrent_orders_cannot_oversell():
+    """并发下单不会产生负库存：库存 1 的商品仅一单成功。
+
+    通过模块级 TestClient 的 portal 事件循环执行：共享的 Prisma Client 在
+    lifespan 中已连接并绑定该循环，跨循环访问会触发 asyncio 事件绑定错误。
+    """
+    transport = ASGITransport(app=app)
+
+    async def scenario() -> None:
         async with AsyncClient(transport=transport, base_url="http://test") as http:
             login = await http.post(
                 "/api/v1/auth/admin/login",
@@ -544,6 +545,5 @@ async def test_concurrent_orders_cannot_oversell():
                 json={"stock_qty": original_stock},
                 cookies=admin,
             )
-    finally:
-        if connected_here:
-            await prisma_repo.disconnect()
+
+    client.portal.call(scenario)
