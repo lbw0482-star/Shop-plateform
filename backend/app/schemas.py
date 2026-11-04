@@ -54,6 +54,13 @@ class CategoryCreateRequest(APIModel):
     sort_no: int = Field(default=0, ge=0)
 
 
+class CategoryUpdateRequest(APIModel):
+    category_name: str | None = Field(default=None, min_length=1, max_length=50)
+    description: str | None = Field(default=None, max_length=200)
+    sort_no: int | None = Field(default=None, ge=0)
+    status: Literal["A", "I"] | None = None
+
+
 class ProductCreateRequest(APIModel):
     product_code: str = Field(min_length=1, max_length=30)
     product_name: str = Field(min_length=1, max_length=100)
@@ -99,11 +106,17 @@ class OrderCreateRequest(APIModel):
     remark: str | None = Field(default=None, max_length=500)
 
 
+class OrderItemQuantity(APIModel):
+    product_id: int
+    quantity: int = Field(gt=0, le=999)
+
+
 class OrderUpdateRequest(APIModel):
     receiver_name: str | None = Field(default=None, min_length=1, max_length=50)
     receiver_phone: str | None = Field(default=None, min_length=5, max_length=20)
     receiver_address: str | None = Field(default=None, min_length=1, max_length=255)
     remark: str | None = Field(default=None, max_length=500)
+    items: list[OrderItemQuantity] | None = None
 
 
 class RefundApplyRequest(APIModel):
@@ -160,4 +173,38 @@ class AdminView(APIModel):
     real_name: str | None
     roles: list[str]
     status: str
+
+
+class MemberAddressCreateRequest(APIModel):
+    receiver_name: str = Field(min_length=1, max_length=50)
+    receiver_phone: str = Field(min_length=5, max_length=20)
+    address_detail: str = Field(min_length=1, max_length=255)
+    is_default: bool = False
+
+
+class MemberAddressUpdateRequest(APIModel):
+    receiver_name: str | None = Field(default=None, min_length=1, max_length=50)
+    receiver_phone: str | None = Field(default=None, min_length=5, max_length=20)
+    address_detail: str | None = Field(default=None, min_length=1, max_length=255)
+    is_default: bool | None = None
+
+
+class AdminUserUpdateRequest(APIModel):
+    gender: Literal["M", "F", "U"] | None = None
+    email: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=20)
+    account_status: Literal["A", "I"] | None = None
+
+
+class AdjustPointsRequest(APIModel):
+    points: int
+    reason: str = Field(min_length=1, max_length=200)
+
+
+class AdminUpdateRequest(APIModel):
+    real_name: str | None = Field(default=None, min_length=1, max_length=50)
+    email: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=20)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+    role_code: Literal["OPER_ADMIN", "SUPER_ADMIN"] | None = None
 

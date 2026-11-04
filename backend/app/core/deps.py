@@ -1,49 +1,73 @@
-from fastapi import Cookie, Depends, HTTPException, status
+"""认证与权限依赖：服务端会话、角色边界和强制改密约束。"""
+from __future__ import annotations
 
-from .config import Settings, get_settings
-from ..db import Admin, Session, Store, User, store
+from fastapi import Cookie, Depends
+from prisma import Prisma
+from prisma.models import SysAdmin, SysUser
 
+from ..repositories.prisma import get_client
+from ..services import sessions
+from .config import Settings
+from .errors import bad_request, forbidden, unauthorized
 
 MEMBER_COOKIE = "member_session"
 ADMIN_COOKIE = "admin_session"
 
-
-def get_store() -> Store:
-    return store
+ADMIN_ROLES_INCLUDE = {"roles": {"include": {"role": True}}}
 
 
-def _session_or_401(token: str | None, expected_type: str, db: Store) -> Session:
-    session = db.get_session(token)
-    if session is None or session.subject_type != expected_type:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="请先登录")
-    return session
+def admin_role_codes(admin: SysAdmin) -> list[str]:
+    return [link.role.roleCode for link in admin.roles or [] if link.role]
 
 
-def get_current_member(
+def is_super_admin(admin: SysAdmin) -> bool:
+    return "SUPER_ADMIN" in admin_role_codes(admin)
+
+
+async def get_current_member(
     member_session: str | None = Cookie(default=None),
-    db: Store = Depends(get_store),
-) -> User:
-    session = _session_or_401(member_session, "member", db)
-    user = db.users.get(session.subject_id)
-    if user is None or user.account_status != "A":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="会员账号不可用")
+    client: Prisma = Depends(get_client),
+) -> SysUser:
+    session = await sessions.find(client, member_session)
+    if session is None or session.userId is None:
+        raise unauthorized()
+    user = await client.sysuser.find_unique(
+        where={"userId": session.userId}, include={"level": True}
+    )
+    if user is None or user.accountStatus != "A":
+        raise unauthorized("会员账号不可用")
     return user
 
 
-def get_current_admin(
+async def ensure_password_changed(
+    user: SysUser = Depends(get_current_member),
+) -> SysUser:
+    """管理员重置临时密码后，禁止购物、下单、留言直到修改密码。"""
+    if user.mustChangePassword:
+        raise bad_request("初始密码尚未修改，请先修改临时密码")
+    return user
+
+
+async def get_current_admin(
     admin_session: str | None = Cookie(default=None),
-    db: Store = Depends(get_store),
-) -> Admin:
-    session = _session_or_401(admin_session, "admin", db)
-    admin = db.admins.get(session.subject_id)
+    client: Prisma = Depends(get_client),
+) -> SysAdmin:
+    session = await sessions.find(client, admin_session)
+    if session is None or session.adminId is None:
+        raise unauthorized()
+    admin = await client.sysadmin.find_unique(
+        where={"adminId": session.adminId}, include=ADMIN_ROLES_INCLUDE
+    )
     if admin is None or admin.status != "A":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="管理员账号不可用")
+        raise unauthorized("管理员账号不可用")
     return admin
 
 
-def require_super_admin(admin: Admin = Depends(get_current_admin)) -> Admin:
-    if "SUPER_ADMIN" not in admin.roles:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要超级管理员权限")
+async def require_super_admin(
+    admin: SysAdmin = Depends(get_current_admin),
+) -> SysAdmin:
+    if not is_super_admin(admin):
+        raise forbidden("需要超级管理员权限")
     return admin
 
 
@@ -55,4 +79,3 @@ def session_cookie_kwargs(settings: Settings) -> dict:
         "max_age": settings.session_ttl_hours * 60 * 60,
         "path": "/",
     }
-
