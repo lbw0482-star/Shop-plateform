@@ -1,0 +1,2 @@
+"""Member shopping platform backend."""
+

@@ -1,0 +1,285 @@
+generator client {
+  provider = "prisma-client-py"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model MemberLevel {
+  levelId   Int       @id @default(autoincrement()) @map("level_id")
+  levelName String    @unique @map("level_name") @db.VarChar(30)
+  minPoints Int       @map("min_points")
+  maxPoints Int?      @map("max_points")
+  sortNo    Int       @default(0) @map("sort_no")
+  status    String    @default("A") @db.Char(1)
+  users     SysUser[]
+  @@map("member_level")
+}
+
+model SysUser {
+  userId             Int              @id @default(autoincrement()) @map("user_id")
+  username           String           @unique @db.VarChar(50)
+  passwordHash       String           @map("password_hash") @db.VarChar(255)
+  mustChangePassword Boolean          @default(false) @map("must_change_password")
+  gender             String           @default("U") @db.Char(1)
+  email              String?          @db.VarChar(100)
+  phone              String?          @db.VarChar(20)
+  registerTime       DateTime         @default(now()) @map("register_time")
+  totalPoints        Int              @default(0) @map("total_points")
+  levelId            Int              @map("level_id")
+  accountStatus      String           @default("A") @map("account_status") @db.Char(1)
+  lastLoginTime      DateTime?        @map("last_login_time")
+  level              MemberLevel      @relation(fields: [levelId], references: [levelId])
+  carts              Cart[]
+  addresses          MemberAddress[]
+  orders             Order[]
+  messages           MemberMessage[]
+  sessions           AuthSession[]
+  pointTransactions  PointTransaction[]
+  @@map("sys_user")
+}
+
+model SysAdmin {
+  adminId       Int             @id @default(autoincrement()) @map("admin_id")
+  adminName     String          @unique @map("admin_name") @db.VarChar(50)
+  passwordHash  String          @map("password_hash") @db.VarChar(255)
+  realName      String?         @map("real_name") @db.VarChar(50)
+  email         String?         @db.VarChar(100)
+  phone         String?         @db.VarChar(20)
+  status        String          @default("A") @db.Char(1)
+  createdTime   DateTime        @default(now()) @map("created_time")
+  lastLoginTime DateTime?       @map("last_login_time")
+  roles         SysAdminRole[]
+  replies       MessageReply[]
+  reviews       MemberMessage[] @relation("reviewer")
+  auditLogs     AuditLog[]
+  sessions      AuthSession[]
+  @@map("sys_admin")
+}
+
+model SysRole {
+  roleId      Int             @id @default(autoincrement()) @map("role_id")
+  roleCode    String          @unique @map("role_code") @db.VarChar(30)
+  roleName    String          @map("role_name") @db.VarChar(50)
+  description String?         @db.VarChar(200)
+  status      String          @default("A") @db.Char(1)
+  admins      SysAdminRole[]
+  @@map("sys_role")
+}
+
+model SysAdminRole {
+  adminId Int      @map("admin_id")
+  roleId  Int      @map("role_id")
+  admin   SysAdmin @relation(fields: [adminId], references: [adminId], onDelete: Cascade)
+  role    SysRole  @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+  @@id([adminId, roleId])
+  @@map("sys_admin_role")
+}
+
+model ProductCategory {
+  categoryId   Int       @id @default(autoincrement()) @map("category_id")
+  categoryName String    @unique @map("category_name") @db.VarChar(50)
+  description  String?   @db.VarChar(200)
+  sortNo       Int       @default(0) @map("sort_no")
+  status       String    @default("A") @db.Char(1)
+  createdTime  DateTime  @default(now()) @map("created_time")
+  products     Product[]
+  @@map("product_category")
+}
+
+model Product {
+  productId      Int              @id @default(autoincrement()) @map("product_id")
+  productCode    String           @unique @map("product_code") @db.VarChar(30)
+  productName    String           @map("product_name") @db.VarChar(100)
+  categoryId     Int              @map("category_id")
+  stockQty       Int              @default(0) @map("stock_qty")
+  unitPrice      Decimal          @map("unit_price") @db.Decimal(18, 2)
+  productIntro   String?          @map("product_intro") @db.Text
+  recommendFlag  Boolean          @default(false) @map("recommend_flag")
+  listingDate    DateTime?        @map("listing_date")
+  productPoints  Int              @default(0) @map("product_points")
+  productStatus  String           @default("D") @map("product_status") @db.Char(1)
+  mainImageUrl   String?          @map("main_image_url") @db.VarChar(255)
+  createdTime    DateTime         @default(now()) @map("created_time")
+  updatedTime    DateTime?        @map("updated_time")
+  category       ProductCategory  @relation(fields: [categoryId], references: [categoryId])
+  images         ProductImage[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  @@index([productStatus, categoryId])
+  @@map("product")
+}
+
+model ProductImage {
+  imageId    Int      @id @default(autoincrement()) @map("image_id")
+  productId  Int      @map("product_id")
+  imageUrl   String   @map("image_url") @db.VarChar(255)
+  isMain     Boolean  @default(false) @map("is_main")
+  sortNo     Int      @default(0) @map("sort_no")
+  createdTime DateTime @default(now()) @map("created_time")
+  product    Product  @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  @@map("product_image")
+}
+
+model Cart {
+  cartId      Int        @id @default(autoincrement()) @map("cart_id")
+  userId      Int        @unique @map("user_id")
+  createdTime DateTime   @default(now()) @map("created_time")
+  updatedTime DateTime?  @map("updated_time")
+  user        SysUser    @relation(fields: [userId], references: [userId])
+  items       CartItem[]
+  @@map("cart")
+}
+
+model CartItem {
+  cartItemId Int      @id @default(autoincrement()) @map("cart_item_id")
+  cartId     Int      @map("cart_id")
+  productId  Int      @map("product_id")
+  quantity   Int
+  addTime    DateTime @default(now()) @map("add_time")
+  updatedTime DateTime? @map("updated_time")
+  cart       Cart     @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [productId])
+  @@unique([cartId, productId])
+  @@map("cart_item")
+}
+
+model MemberAddress {
+  addressId      Int      @id @default(autoincrement()) @map("address_id")
+  userId         Int      @map("user_id")
+  receiverName   String   @map("receiver_name") @db.VarChar(50)
+  receiverPhone  String   @map("receiver_phone") @db.VarChar(20)
+  addressDetail  String   @map("address_detail") @db.VarChar(255)
+  isDefault      Boolean  @default(false) @map("is_default")
+  createdTime    DateTime @default(now()) @map("created_time")
+  updatedTime    DateTime? @map("updated_time")
+  user           SysUser  @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  @@map("member_address")
+}
+
+model Order {
+  orderId         Int              @id @default(autoincrement()) @map("order_id")
+  orderNo         String           @unique @map("order_no") @db.VarChar(32)
+  userId          Int              @map("user_id")
+  orderTime       DateTime         @default(now()) @map("order_time")
+  receiverName    String           @map("receiver_name") @db.VarChar(50)
+  receiverPhone   String           @map("receiver_phone") @db.VarChar(20)
+  receiverAddress String           @map("receiver_address") @db.VarChar(255)
+  paymentMethod   String           @default("SIMULATED_ONLINE") @map("payment_method") @db.VarChar(30)
+  paymentStatus   String           @default("U") @map("payment_status") @db.Char(1)
+  orderStatus     String           @default("W") @map("order_status") @db.Char(1)
+  totalAmount     Decimal          @map("total_amount") @db.Decimal(18, 2)
+  earnedPoints    Int              @default(0) @map("earned_points")
+  remark          String?          @db.VarChar(500)
+  cancelReason    String?          @map("cancel_reason") @db.VarChar(200)
+  refundReason    String?          @map("refund_reason") @db.VarChar(200)
+  refundTime      DateTime?        @map("refund_time")
+  completedTime   DateTime?        @map("completed_time")
+  updatedTime     DateTime?        @map("updated_time")
+  user            SysUser          @relation(fields: [userId], references: [userId])
+  items           OrderItem[]
+  payments        PaymentRecord[]
+  pointTransactions PointTransaction[]
+  @@index([userId, orderStatus, orderTime])
+  @@map("orders")
+}
+
+model OrderItem {
+  orderItemId         Int      @id @default(autoincrement()) @map("order_item_id")
+  orderId             Int      @map("order_id")
+  productId           Int      @map("product_id")
+  productNameSnapshot String   @map("product_name_snapshot") @db.VarChar(100)
+  unitPrice           Decimal  @map("unit_price") @db.Decimal(18, 2)
+  quantity            Int
+  itemPoints          Int      @default(0) @map("item_points")
+  subtotal            Decimal  @db.Decimal(18, 2)
+  order               Order    @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+  product             Product  @relation(fields: [productId], references: [productId])
+  @@unique([orderId, productId])
+  @@map("order_item")
+}
+
+model PaymentRecord {
+  paymentId           Int      @id @default(autoincrement()) @map("payment_id")
+  orderId             Int      @map("order_id")
+  paymentNo           String   @unique @map("payment_no") @db.VarChar(40)
+  paymentMethod       String   @default("SIMULATED_ONLINE") @map("payment_method") @db.VarChar(30)
+  paymentAmount       Decimal  @map("payment_amount") @db.Decimal(18, 2)
+  paymentStatus       String   @default("U") @map("payment_status") @db.Char(1)
+  paidTime            DateTime? @map("paid_time")
+  transactionReference String? @map("transaction_reference") @db.VarChar(64)
+  createdTime         DateTime @default(now()) @map("created_time")
+  order               Order    @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+  @@map("payment_record")
+}
+
+model MemberMessage {
+  messageId       Int             @id @default(autoincrement()) @map("message_id")
+  userId          Int             @map("user_id")
+  title           String          @db.VarChar(100)
+  content         String          @db.Text
+  messageStatus   String          @default("P") @map("message_status") @db.Char(1)
+  createdTime     DateTime        @default(now()) @map("created_time")
+  updatedTime     DateTime?       @map("updated_time")
+  reviewerAdminId Int?            @map("reviewer_admin_id")
+  reviewTime      DateTime?       @map("review_time")
+  user            SysUser         @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  reviewer        SysAdmin?       @relation("reviewer", fields: [reviewerAdminId], references: [adminId])
+  replies         MessageReply[]
+  @@map("member_message")
+}
+
+model MessageReply {
+  replyId    Int           @id @default(autoincrement()) @map("reply_id")
+  messageId  Int           @map("message_id")
+  adminId    Int           @map("admin_id")
+  content    String        @db.Text
+  createdTime DateTime      @default(now()) @map("created_time")
+  message    MemberMessage @relation(fields: [messageId], references: [messageId], onDelete: Cascade)
+  admin      SysAdmin      @relation(fields: [adminId], references: [adminId])
+  @@map("message_reply")
+}
+
+model AuditLog {
+  logId           Int       @id @default(autoincrement()) @map("log_id")
+  adminId         Int?      @map("admin_id")
+  operationType   String    @map("operation_type") @db.VarChar(50)
+  targetType      String    @map("target_type") @db.VarChar(50)
+  targetId        String?   @map("target_id") @db.VarChar(50)
+  operationDetail String?   @map("operation_detail") @db.VarChar(500)
+  operationTime   DateTime  @default(now()) @map("operation_time")
+  ipAddress       String?   @map("ip_address") @db.VarChar(45)
+  admin           SysAdmin? @relation(fields: [adminId], references: [adminId])
+  @@index([targetType, targetId])
+  @@map("audit_log")
+}
+
+model AuthSession {
+  sessionId  String    @id @map("session_id") @db.VarChar(80)
+  userId     Int?      @map("user_id")
+  adminId    Int?      @map("admin_id")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       SysUser?  @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  admin      SysAdmin? @relation(fields: [adminId], references: [adminId], onDelete: Cascade)
+  @@index([expiresAt])
+  @@map("auth_session")
+}
+
+model PointTransaction {
+  transactionId  Int       @id @default(autoincrement()) @map("transaction_id")
+  userId         Int       @map("user_id")
+  orderId        Int?      @map("order_id")
+  points         Int
+  transactionType String   @map("transaction_type") @db.VarChar(30)
+  idempotencyKey String    @unique @map("idempotency_key") @db.VarChar(100)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  user           SysUser   @relation(fields: [userId], references: [userId])
+  order          Order?    @relation(fields: [orderId], references: [orderId])
+  @@index([userId, createdAt])
+  @@map("point_transaction")
+}
+
