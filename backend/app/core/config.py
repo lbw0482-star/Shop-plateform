@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     app_name: str = "Member Shopping Platform API"
     app_env: str = "development"
     api_prefix: str = "/api/v1"
-    database_url: str = "postgresql://shop:shop@localhost:5432/shop"
+    database_url: str = "postgresql://shop_user:shop@localhost:5432/shop_db"
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
     session_ttl_hours: int = 24
