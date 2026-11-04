@@ -23,6 +23,21 @@ info() { printf '\033[1;32m[OK]\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33m[WARN]\033[0m %s\n' "$1"; }
 die()  { printf '\033[1;31m[FAIL]\033[0m %s\n' "$1" >&2; exit 1; }
 
+node_major() { node -e 'process.stdout.write(String(process.versions.node.split(".")[0]))'; }
+
+load_nvm() {
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$HOME/.nvm/nvm.sh"; return 0
+  fi
+  if command -v brew >/dev/null 2>&1 && [ -s "$(brew --prefix nvm 2>/dev/null)/nvm.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$(brew --prefix nvm)/nvm.sh"; return 0
+  fi
+  return 1
+}
+
 echo "==> 项目根目录: $ROOT_DIR"
 
 # ---------- 1. 工具链检查 ----------
@@ -75,6 +90,7 @@ if [ ! -d .venv ]; then
 else
   info "虚拟环境 .venv 已存在，跳过创建"
 fi
+
 PY_BIN=".venv/bin"
 "$PY_BIN/pip" install -q -U pip
 "$PY_BIN/pip" install -q -r requirements.txt
@@ -87,23 +103,44 @@ else
   info "backend/.env 已存在，保持不变"
 fi
 
-"$PY_BIN/prisma" generate --schema prisma/schema.prisma >/dev/null && info "Prisma Client 生成完成"
-"$PY_BIN/prisma" migrate deploy --schema prisma/schema.prisma >/dev/null && info "数据库迁移已应用（migrate deploy）"
-"$PY_BIN/python" scripts/seed.py >/dev/null && info "种子数据写入完成（admin / Admin123!）"
+# prisma generate 会派生子进程 prisma-client-py，必须在激活的虚拟环境中执行
+(
+  # shellcheck disable=SC1091
+  . .venv/bin/activate
+  prisma generate --schema prisma/schema.prisma >/dev/null \
+    && info "Prisma Client 生成完成" \
+    || die "prisma generate 失败（见上方报错）"
+  prisma migrate deploy --schema prisma/schema.prisma >/dev/null \
+    && info "数据库迁移已应用（migrate deploy）" \
+    || die "prisma migrate deploy 失败（请检查 backend/.env 的 DATABASE_URL）"
+)
+"$PY_BIN/python" scripts/seed.py >/dev/null \
+  && info "种子数据写入完成（管理员：admin / Admin123!）" \
+  || die "seed 失败（可手动运行：cd backend && .venv/bin/python scripts/seed.py）"
 
 # ---------- 5. 前端初始化 ----------
 echo "==> 前端（React + Vite）"
-NODE_MAJOR="$(node -e 'process.stdout.write(process.versions.node.split(".")[0])')"
+NODE_MAJOR="$(node_major)"
 if [ "$NODE_MAJOR" -lt 18 ]; then
-  warn "当前 Node v$NODE_MAJOR (<18)，Vite 5 无法运行。请执行：nvm install 18 && nvm use 18 后重跑本脚本"
-  warn "已跳过前端 npm install"
-else
-  cd "$FRONTEND_DIR"
-  if [ ! -f .env ]; then cp .env.example .env; info "已生成 frontend/.env"; fi
-  npm install --no-fund --no-audit
-  info "前端依赖安装完成"
-  cd "$ROOT_DIR"
+  # 非 nvm 默认版本低于 18 时，尝试在本脚本环境中自动切换
+  if load_nvm && nvm use 18 >/dev/null 2>&1; then
+    info "自动切换 Node 版本：$(node --version)（nvm use 18）"
+  else
+    warn "当前 Node v$NODE_MAJOR (<18)，Vite 5 无法运行，且未找到可用的 nvm 18"
+    warn "请执行：nvm install 18 && nvm alias default 18，然后重跑本脚本（已跳过前端 npm install）"
+    exit 0
+  fi
 fi
+
+cd "$FRONTEND_DIR"
+if [ ! -f .env ]; then
+  cp .env.example .env
+  info "已生成 frontend/.env"
+fi
+npm install --no-fund --no-audit >/dev/null \
+  && info "前端依赖安装完成（Node $(node --version)）" \
+  || die "npm install 失败，请检查网络后重试"
+cd "$ROOT_DIR"
 
 # ---------- 6. 完成 ----------
 cat <<'EOF'

@@ -12,6 +12,12 @@ docs/       需求规格说明书和实现说明
 
 ## 本地运行
 
+完整的环境依赖安装、PostgreSQL 数据库本地化创建和首次初始化步骤，见 **[docs/SETUP.md](docs/SETUP.md)**；也可在仓库根目录执行一键初始化脚本（幂等）：
+
+```bash
+./setup_local.sh
+```
+
 ### 后端
 
 ```bash
