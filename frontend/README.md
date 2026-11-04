@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-开发服务器默认运行在 `http://localhost:5173`，`/api` 和 `/uploads` 会代理到 FastAPI 的 `http://127.0.0.1:8000`。浏览器请求使用 `credentials: include`，会员和管理员登录态由后端 HttpOnly Cookie 维护。
+开发服务器默认运行在 `http://localhost:5173`，`/api` 和 `/uploads` 会代理到 FastAPI 的 `http://127.0.0.1:8001`。浏览器请求使用 `credentials: include`，会员和管理员登录态由后端 HttpOnly Cookie 维护。
 
 ## 页面范围
 

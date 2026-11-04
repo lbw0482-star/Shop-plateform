@@ -24,10 +24,10 @@ cp .env.example .env
 prisma generate --schema prisma/schema.prisma
 prisma migrate deploy --schema prisma/schema.prisma
 python scripts/seed.py
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
-后端 API 文档：<http://127.0.0.1:8000/docs>
+后端 API 文档：<http://127.0.0.1:8001/docs>
 
 ### 前端
 

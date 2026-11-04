@@ -9,10 +9,10 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate       # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
-接口文档：<http://127.0.0.1:8000/docs>。
+接口文档：<http://127.0.0.1:8001/docs>。
 
 默认演示管理员为 `admin / Admin123!`。会员注册后使用 `member_session` HttpOnly Cookie；管理员使用独立的 `admin_session` Cookie。两类会话不会互相认证。
 
